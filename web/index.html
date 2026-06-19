@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RappiSim — Simulación de delivery</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app">
+
+  <!-- Barra superior estilo Rappi -->
+  <header class="topbar" id="header">
+    <div class="topbar__address container">
+      <button class="address-btn" id="btnAddress" type="button">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5a2.5 2.5 0 1 1 0-5 2.5 2.5 0 0 1 0 5z"/></svg>
+        <span>
+          <small>Entregar en</small>
+          <strong id="addressText">Cargando...</strong>
+        </span>
+        <svg class="address-btn__chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m6 9 6 6 6-6"/></svg>
+      </button>
+    </div>
+    <div class="topbar__main container">
+      <a href="#inicio" class="logo">
+        <span class="logo__mark">R</span>
+        <span class="logo__name">appi<span>Sim</span></span>
+      </a>
+      <div class="topbar__search">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+        <input type="search" id="searchGlobal" placeholder="¿Qué quieres pedir hoy?" autocomplete="off">
+      </div>
+      <div class="topbar__actions">
+        <button class="icon-btn" id="btnCart" aria-label="Carrito">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
+          <span class="cart-badge" id="cartBadge">0</span>
+        </button>
+        <button class="avatar-btn" id="btnLogin" type="button" title="Mi cuenta">MG</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="main-content">
+
+    <!-- Inicio estilo Rappi -->
+    <section class="home" id="inicio">
+      <div class="container">
+        <p class="home__greeting">Hola, <strong id="userName">María</strong> 👋</p>
+
+        <!-- Pedido activo -->
+        <div class="active-order" id="activeOrder" hidden></div>
+
+        <!-- Verticales (super-app) -->
+        <div class="verticales" id="verticales"></div>
+
+        <!-- Promociones -->
+        <div class="promos">
+          <div class="promos__track" id="promosTrack"></div>
+          <div class="promos__dots" id="promosDots"></div>
+        </div>
+
+        <!-- Búsqueda móvil -->
+        <div class="mobile-search">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+          <input type="search" id="searchMobile" placeholder="Busca restaurantes, productos..." autocomplete="off">
+        </div>
+
+        <!-- Lo más pedido -->
+        <div class="popular-section">
+          <div class="section-head section-head--compact">
+            <h2>🔥 Lo más pedido</h2>
+            <span class="muted">Top productos · tabla <code>producto</code></span>
+          </div>
+          <div class="popular-scroll" id="popularScroll"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Tiendas / Comercios -->
+    <section class="section" id="comercios">
+      <div class="container">
+        <div class="section-head">
+          <h2 id="comerciosTitle">Tiendas cerca de ti</h2>
+          <p class="muted">Tabla <code>comercio</code> · filtra por vertical</p>
+        </div>
+
+        <div class="filters" id="filtersBar">
+          <button class="filter-chip active" data-filter="todos">Todos</button>
+          <button class="filter-chip" data-filter="envio-gratis">Envío gratis</button>
+          <button class="filter-chip" data-filter="rapido">Más rápido</button>
+          <button class="filter-chip" data-filter="promo">Con promo</button>
+        </div>
+
+        <div class="tiendas-list" id="comerciosGrid"></div>
+      </div>
+    </section>
+
+    <!-- Menú del comercio -->
+    <section class="section section--store" id="productos" hidden>
+      <div class="store-hero" id="storeHero"></div>
+      <div class="container store-body">
+        <button class="back-link" id="btnVolverComercios" type="button">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m15 18-6-6 6-6"/></svg>
+          Volver a tiendas
+        </button>
+        <div class="store-search">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+          <input type="search" id="searchStore" placeholder="Buscar en el menú..." autocomplete="off">
+        </div>
+        <div class="categorias-tabs" id="categoriasTabs"></div>
+        <div class="productos-list" id="productosGrid"></div>
+      </div>
+    </section>
+
+    <!-- Mis pedidos -->
+    <section class="section section--gray" id="pedidos">
+      <div class="container">
+        <div class="section-head">
+          <h2>Mis pedidos</h2>
+          <p class="muted">Seguimiento en vivo · tablas <code>pedido</code>, <code>pago</code>, <code>ruta_reparto</code></p>
+        </div>
+        <div class="pedidos-list" id="pedidosList"></div>
+        <p class="empty-state" id="pedidosEmpty" hidden>
+          <span>📦</span>
+          Aún no tienes pedidos. ¡Pide algo rico!
+        </p>
+      </div>
+    </section>
+
+    <!-- RappiTenderos / Repartidores -->
+    <section class="section" id="repartidores">
+      <div class="container">
+        <div class="section-head">
+          <h2>RappiTenderos en tu zona</h2>
+          <p class="muted">Tabla <code>repartidor</code> · <code>catalogo_maestro</code> TIPO_VEHICULO</p>
+        </div>
+        <div class="repartidores-grid" id="repartidoresGrid"></div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="container footer__inner">
+      <div>
+        <strong class="footer__logo">RappiSim</strong>
+        <p>Simulación académica de plataforma tipo Rappi · Base de Datos II · UTP 2026</p>
+        <p class="footer__db">Modelo PostgreSQL: <code>delivery_db</code></p>
+      </div>
+      <div class="schema-tags">
+        <span>cliente</span><span>comercio</span><span>producto</span><span>pedido</span>
+        <span>pago</span><span>repartidor</span><span>ruta_reparto</span><span>catalogo_maestro</span>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Navegación inferior móvil -->
+  <nav class="bottom-nav" id="bottomNav">
+    <a href="#inicio" class="bottom-nav__item active" data-section="inicio">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+      <span>Inicio</span>
+    </a>
+    <a href="#comercios" class="bottom-nav__item" data-section="comercios">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9h18v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9z"/><path d="M3 9l2.45-4.9A2 2 0 0 1 7.24 3h9.52a2 2 0 0 1 1.79 1.1L21 9"/></svg>
+      <span>Tiendas</span>
+    </a>
+    <a href="#pedidos" class="bottom-nav__item" data-section="pedidos">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="3" width="15" height="13"/><path d="M16 8h4l3 5v3h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
+      <span>Pedidos</span>
+    </a>
+    <button class="bottom-nav__item" id="btnCartBottom" type="button">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
+      <span>Carrito</span>
+      <span class="bottom-nav__badge" id="cartBadgeBottom">0</span>
+    </button>
+  </nav>
+
+  <!-- Carrito -->
+  <aside class="cart-panel" id="cartPanel" aria-hidden="true">
+    <div class="cart-panel__overlay" id="cartOverlay"></div>
+    <div class="cart-panel__drawer">
+      <div class="cart-panel__header">
+        <h3>Tu pedido</h3>
+        <button class="icon-btn" id="btnCloseCart" type="button" aria-label="Cerrar">&times;</button>
+      </div>
+      <div class="cart-panel__store" id="cartStoreName" hidden></div>
+      <div class="cart-panel__body" id="cartBody"></div>
+      <div class="cart-panel__footer" id="cartFooter" hidden>
+        <div class="cart-summary">
+          <div class="cart-summary__row"><span>Subtotal</span><span id="cartSubtotal">S/ 0.00</span></div>
+          <div class="cart-summary__row"><span>Costo de envío</span><span id="cartEnvio">S/ 0.00</span></div>
+          <div class="cart-summary__row cart-summary__row--total"><span>Total</span><span id="cartTotal">S/ 0.00</span></div>
+        </div>
+        <button class="btn btn--primary btn--block" id="btnCheckout" type="button">Continuar al pago</button>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Checkout -->
+  <dialog class="modal" id="checkoutModal">
+    <form class="checkout-form" id="checkoutForm">
+      <div class="modal__header">
+        <h3>Finalizar pedido</h3>
+        <button type="button" class="icon-btn" id="btnCloseCheckout">&times;</button>
+      </div>
+      <div class="modal__body">
+        <div class="rappi-pay-banner">
+          <span>💳</span>
+          <div>
+            <strong>RappiPay Sim</strong>
+            <small>Paga con Yape, Plin o tarjeta · tabla <code>pago</code></small>
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="direccionEntrega">Dirección de entrega <span class="req">*</span></label>
+          <input type="text" id="direccionEntrega" required placeholder="Av. Los Olivos 456, San Isidro">
+        </div>
+        <div class="form-group">
+          <label for="referenciaEntrega">Referencia de entrega</label>
+          <input type="text" id="referenciaEntrega" placeholder="Torre B, dpto. 302 — portería">
+        </div>
+        <div class="form-group">
+          <label for="cuponCodigo">Código promocional</label>
+          <div class="cupon-row">
+            <input type="text" id="cuponCodigo" placeholder="Ej: BIENVENIDO o RAPPI10" autocomplete="off">
+            <button type="button" class="btn btn--outline-sm" id="btnAplicarCupon">Aplicar</button>
+          </div>
+          <p class="cupon-hint" id="cuponHint">Prueba <strong>BIENVENIDO</strong> (envío gratis) o <strong>RAPPI10</strong> (10% dto.)</p>
+        </div>
+        <div class="form-group">
+          <label>Método de pago <span class="req">*</span></label>
+          <div class="payment-options" id="paymentOptions"></div>
+        </div>
+        <div class="checkout-resumen" id="checkoutResumen"></div>
+      </div>
+      <div class="modal__footer">
+        <button type="button" class="btn btn--ghost" id="btnCancelCheckout">Cancelar</button>
+        <button type="submit" class="btn btn--primary">Pedir en RappiSim</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Barra flotante del carrito -->
+  <div class="float-cart" id="floatCart" hidden>
+    <button type="button" class="float-cart__btn" id="floatCartBtn">
+      <span class="float-cart__count" id="floatCartCount">0</span>
+      <span class="float-cart__label">Ver carrito</span>
+      <span class="float-cart__total" id="floatCartTotal">S/ 0.00</span>
+    </button>
+  </div>
+
+  <!-- Modal dirección -->
+  <dialog class="modal" id="addressModal">
+    <div class="modal-sheet">
+      <div class="modal__header">
+        <h3>📍 Dirección de entrega</h3>
+        <button type="button" class="icon-btn icon-btn--dark" id="btnCloseAddress">&times;</button>
+      </div>
+      <div class="modal__body">
+        <div class="saved-addresses" id="savedAddresses"></div>
+        <div class="form-group">
+          <label for="newAddress">Nueva dirección</label>
+          <input type="text" id="newAddress" placeholder="Av. Javier Prado 1234, San Borja">
+        </div>
+        <div class="form-group">
+          <label for="newReference">Referencia</label>
+          <input type="text" id="newReference" placeholder="Casa, dpto. 402">
+        </div>
+      </div>
+      <div class="modal__footer">
+        <button type="button" class="btn btn--primary btn--block" id="btnSaveAddress">Guardar dirección</button>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- Panel perfil -->
+  <aside class="profile-panel" id="profilePanel" aria-hidden="true">
+    <div class="cart-panel__overlay" id="profileOverlay"></div>
+    <div class="profile-panel__drawer">
+      <div class="profile-panel__header">
+        <div class="profile-avatar">MG</div>
+        <div>
+          <h3 id="profileName">María García</h3>
+          <p class="muted" id="profileRole">Cliente · tabla <code>cliente</code></p>
+        </div>
+        <button class="icon-btn icon-btn--dark" id="btnCloseProfile" type="button">&times;</button>
+      </div>
+      <div class="profile-panel__body">
+        <div class="profile-stat">
+          <span id="profilePedidos">0</span>
+          <small>Pedidos</small>
+        </div>
+        <div class="profile-stat">
+          <span id="profileFavoritos">0</span>
+          <small>Favoritos</small>
+        </div>
+        <ul class="profile-menu">
+          <li><button type="button" id="btnProfileAddress">📍 Mis direcciones</button></li>
+          <li><button type="button" id="btnProfilePedidos">📦 Historial de pedidos</button></li>
+          <li><button type="button" id="btnProfileFavoritos">❤️ Tiendas favoritas</button></li>
+        </ul>
+        <div class="profile-info">
+          <p><strong>Correo:</strong> <span id="profileEmail">maria@email.com</span></p>
+          <p><strong>Teléfono:</strong> <span id="profilePhone">987654321</span></p>
+          <p><strong>Moneda:</strong> PEN (Soles)</p>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Detalle producto -->
+  <dialog class="modal" id="productModal">
+    <div class="product-modal" id="productModalContent"></div>
+  </dialog>
+
+  <button class="scroll-top" id="scrollTop" type="button" aria-label="Volver arriba">↑</button>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,206 @@
+%% Modelo Entidad-Relación — delivery_db_distribuida
+%% Renderizar en GitHub, VS Code (Mermaid) o https://mermaid.live
+
+erDiagram
+  NODO_REGISTRO {
+    varchar region_codigo PK
+    varchar nombre_nodo
+    boolean es_nodo_global
+  }
+
+  CATALOGO_MAESTRO {
+    uuid id_catalogo PK
+    varchar tipo_catalogo
+    varchar codigo
+    varchar nombre
+    boolean activo
+  }
+
+  REGLA_FRAGMENTACION {
+    serial id_regla PK
+    varchar tabla
+    varchar clave_fragmento
+    varchar nodo_ejemplo FK
+  }
+
+  PERSONA {
+    varchar region_codigo PK
+    uuid id_persona PK
+    uuid id_tipo_persona FK
+    uuid id_tipo_documento FK
+    varchar numero_documento
+    varchar nombres
+    varchar apellidos
+    varchar razon_social
+  }
+
+  USUARIO {
+    varchar region_codigo PK
+    uuid id_usuario PK
+    uuid id_persona FK
+    uuid id_rol FK
+    text nombre_acceso
+    boolean cuenta_activa
+  }
+
+  CLIENTE {
+    varchar region_codigo PK
+    uuid id_cliente PK
+    uuid id_usuario FK
+    uuid id_preferencia_notificacion FK
+  }
+
+  REPARTIDOR {
+    varchar region_codigo PK
+    uuid id_repartidor PK
+    uuid id_persona FK
+    uuid id_usuario FK
+    uuid id_tipo_vehiculo FK
+    boolean disponible
+  }
+
+  COMERCIO {
+    varchar region_codigo PK
+    uuid id_comercio PK
+    varchar nombre
+    varchar ruc
+    text direccion
+  }
+
+  PROVEEDOR {
+    varchar region_codigo PK
+    uuid id_proveedor PK
+    uuid id_persona FK
+    boolean activo
+  }
+
+  COMERCIO_PROVEEDOR {
+    varchar region_codigo PK
+    uuid id_comercio PK
+    uuid id_proveedor PK
+    text notas
+  }
+
+  CATEGORIA_PRODUCTO {
+    varchar region_codigo PK
+    uuid id_categoria PK
+    uuid id_comercio FK
+    varchar nombre
+  }
+
+  PRODUCTO {
+    varchar region_codigo PK
+    uuid id_producto PK
+    uuid id_comercio FK
+    uuid id_categoria FK
+    varchar nombre
+    numeric precio
+  }
+
+  PEDIDO {
+    varchar region_codigo PK
+    uuid id_pedido PK
+    uuid id_cliente FK
+    uuid id_comercio FK
+    uuid id_repartidor FK
+    uuid id_estado_pedido FK
+    varchar nombre_cliente
+    numeric total
+  }
+
+  DETALLE_PEDIDO {
+    varchar region_codigo PK
+    uuid id_detalle_pedido PK
+    uuid id_pedido FK
+    uuid id_producto FK
+    varchar nombre_producto
+    integer cantidad
+  }
+
+  PAGO {
+    varchar region_codigo PK
+    uuid id_pago PK
+    uuid id_pedido FK
+    uuid id_metodo_pago FK
+    uuid id_estado_pago FK
+    numeric monto
+  }
+
+  RUTA_REPARTO {
+    varchar region_codigo PK
+    uuid id_ruta PK
+    uuid id_repartidor FK
+    uuid id_estado_ruta FK
+    date fecha_planificacion
+  }
+
+  PARADA_RUTA {
+    varchar region_codigo PK
+    uuid id_parada PK
+    uuid id_ruta FK
+    uuid id_pedido FK
+    integer orden_visita
+  }
+
+  BITACORA_EVENTO {
+    uuid id_evento PK
+    varchar region_codigo
+    varchar tipo_evento
+    uuid id_registro
+    uuid id_usuario
+  }
+
+  SAGA_TRANSACCION {
+    uuid id_saga PK
+    varchar tipo_operacion
+    varchar region_codigo FK
+    varchar estado
+    uuid id_pedido
+  }
+
+  SAGA_PASO {
+    uuid id_paso PK
+    uuid id_saga FK
+    smallint orden_paso
+    varchar nombre_paso
+    varchar estado
+  }
+
+  NODO_REGISTRO ||--o{ REGLA_FRAGMENTACION : "documenta"
+  NODO_REGISTRO ||--o{ PERSONA : "fragmenta"
+
+  CATALOGO_MAESTRO ||--o{ PERSONA : "tipo_persona"
+  CATALOGO_MAESTRO ||--o{ PERSONA : "tipo_documento"
+  CATALOGO_MAESTRO ||--o{ USUARIO : "rol"
+  CATALOGO_MAESTRO ||--o{ CLIENTE : "preferencia_notif"
+  CATALOGO_MAESTRO ||--o{ REPARTIDOR : "tipo_vehiculo"
+  CATALOGO_MAESTRO ||--o{ PEDIDO : "estado_pedido"
+  CATALOGO_MAESTRO ||--o{ PAGO : "metodo_pago"
+  CATALOGO_MAESTRO ||--o{ PAGO : "estado_pago"
+  CATALOGO_MAESTRO ||--o{ RUTA_REPARTO : "estado_ruta"
+
+  PERSONA ||--|| USUARIO : "identidad"
+  USUARIO ||--|| CLIENTE : "perfil_comprador"
+  PERSONA ||--o| REPARTIDOR : "identidad"
+  USUARIO ||--o| REPARTIDOR : "cuenta_opcional"
+  PERSONA ||--|| PROVEEDOR : "identidad"
+
+  COMERCIO ||--o{ COMERCIO_PROVEEDOR : "abastecido_por"
+  PROVEEDOR ||--o{ COMERCIO_PROVEEDOR : "abastece"
+  COMERCIO ||--o{ CATEGORIA_PRODUCTO : "organiza"
+  COMERCIO ||--o{ PRODUCTO : "vende"
+  CATEGORIA_PRODUCTO ||--o{ PRODUCTO : "clasifica"
+
+  CLIENTE ||--o{ PEDIDO : "realiza"
+  COMERCIO ||--o{ PEDIDO : "recibe"
+  REPARTIDOR ||--o{ PEDIDO : "entrega"
+  PEDIDO ||--o{ DETALLE_PEDIDO : "contiene"
+  PRODUCTO ||--o{ DETALLE_PEDIDO : "referencia"
+  PEDIDO ||--|| PAGO : "cobra"
+
+  REPARTIDOR ||--o{ RUTA_REPARTO : "recorre"
+  RUTA_REPARTO ||--o{ PARADA_RUTA : "incluye"
+  PEDIDO ||--o{ PARADA_RUTA : "visitado_en"
+
+  NODO_REGISTRO ||--o{ SAGA_TRANSACCION : "coordina"
+  SAGA_TRANSACCION ||--o{ SAGA_PASO : "pasos"
