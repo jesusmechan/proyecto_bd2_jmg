@@ -1,6 +1,9 @@
 -- =========================================================
 -- Script PostgreSQL: delivery_db_distribuida
--- Ejecutar con: psql -f delivery_db_distribuida.sql
+-- Carpeta: 1. esquema  |  Orden: PASO 1
+-- Ejecutar: psql -f "1. esquema/1. delivery_db_distribuida.sql"
+-- Luego:    psql -d delivery_db_distribuida -f "2. datos-semilla/2. delivery_db_distribuida_seed.sql"
+-- Luego:    psql -d delivery_db_distribuida -f "3. fragmentacion/3. delivery_db_fragmentacion_hv.sql"
 --
 -- Modelo adaptado para BASE DE DATOS DISTRIBUIDA (fragmentación horizontal por región).
 -- Estrategia: cada región (nodo) almacena sus propios datos operativos; los catálogos

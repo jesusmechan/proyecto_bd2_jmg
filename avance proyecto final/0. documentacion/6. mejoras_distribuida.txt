@@ -1,0 +1,102 @@
+MEJORAS — SISTEMA DISTRIBUIDO delivery_db_distribuida (PASO 3 v2)
+================================================================
+
+1. CAMBIOS ESTRUCTURALES
+------------------------
+• persona: tabla UNIFICADA en cada nodo (sin persona_identidad / persona_contacto).
+  Motivo: pocas columnas; el JOIN vertical no aporta rendimiento.
+
+• pedido: tabla UNIFICADA con partición RANGE(fecha_creacion).
+  Eliminados pedido_nucleo, pedido_entrega, pedido_totales y fh_pedido duplicado.
+
+• bitacora_evento: partición RANGE(fecha_hora) directamente sobre la tabla principal.
+  Eliminada fh_bitacora duplicada.
+
+• Fragmentación DERIVADA documentada en frag.fragmentacion_derivada:
+  detalle_pedido → pedido | pago → pedido | parada_ruta → ruta_reparto | saga_paso → saga_transaccion
+
+2. RÉPLICA
+----------
+Tipo implementado:
+  • SINCRONA: public → nodo_global (catálogos). El primario confirma antes de propagar.
+  • ASINCRONA: nodo_global → nodos regionales (lectura local eventualmente consistente).
+  • SEMISINCRONA: saga_monitoreo (solo estado, no payload completo).
+
+Consistencia:
+  • Catálogos replicados: consistencia EVENTUAL en nodos regionales.
+  • Datos operativos fragmentados: consistencia FUERTE dentro de cada nodo (ACID local).
+  • No hay transacción distribuida 2PC entre nodos; las sagas coordinan lógicamente.
+
+Sincronización incremental (frag.sincronizar_replicas_globales):
+  • Triggers en public.catalogo_maestro, nodo_registro, regla_fragmentacion → frag.replica_cambios
+  • UPSERT (INSERT ON CONFLICT DO UPDATE) + DELETE de filas ausentes en origen
+  • Ya no se hace TRUNCATE + INSERT completo en cada sincronización
+  • replica_control ampliado: duracion_sync_ms, filas_insertadas/actualizadas/eliminadas,
+    cantidad_errores, ultimo_mensaje_error
+
+3. MONITOREO Y AUDITORÍA
+------------------------
+• frag.nodo_heartbeat: estado, disponibilidad, ultima_conexion, tiempo_respuesta_ms
+• frag.auditoria_cluster: log de migraciones, sincronizaciones y recuperaciones
+• Vistas administrativas:
+  - frag.v_admin_estado_nodos
+  - frag.v_admin_replicas
+  - frag.v_admin_sincronizacion
+  - frag.v_estadisticas_cluster
+
+4. OPERACIONES
+--------------
+Procedimientos por entidad:
+  migrar_persona_a_nodo, migrar_usuarios_a_nodo, migrar_comercio_catalogo_a_nodo,
+  migrar_cliente_a_nodo, migrar_pedidos_a_nodo, migrar_rutas_a_nodo,
+  migrar_bitacora_a_nodo, migrar_sagas_a_nodo
+
+Orquestador: migrar_region_a_nodo → migrar_fragmentos_a_nodos
+  • EXCEPTION en sync/migración; COMMIT por región vía CALL frag.migrar_fragmentos_con_commit_por_region()
+  • EXCEPTION en todas las funciones de sync y migración
+
+Validación: frag.validar_integridad_fragmentacion()
+Recuperación: frag.recuperar_fragmento_region('LIM-N')
+Particiones automáticas: frag.crear_particiones_mensuales(esquema, tabla)
+
+5. ÍNDICES
+----------
+• Por nodo: fecha_creacion, id_cliente, id_comercio, id_pedido, etc.
+• En public: region_codigo para acelerar migración
+
+6. CRITERIOS DE DECISIÓN (MATRIZ)
+---------------------------------
+REPLICAR (tablas pequeñas, lectura global, baja escritura):
+  catalogo_maestro, nodo_registro, regla_fragmentacion
+
+FRAGMENTAR HORIZONTAL (datos regionales, alta escritura):
+  persona, usuario, cliente, comercio, producto, pedido, ...
+
+FRAGMENTAR DERIVADA (sin clave de región propia en réplica):
+  detalle_pedido, pago, parada_ruta, saga_paso
+
+PARTICIONAR POR FECHA (alto volumen temporal):
+  pedido, bitacora_evento
+
+NO FRAGMENTAR VERTICAL:
+  persona (pocas columnas), pedido (consultas requieren todas las columnas)
+
+7. LIMITACIONES DE LA IMPLEMENTACIÓN
+------------------------------------
+• Los nodos LIM-N, LIM-S, AQP y GLOBAL se simulan como ESQUEMAS PostgreSQL
+  dentro de UNA misma instancia y base de datos (delivery_db_distribuida).
+• En producción cada nodo sería un servidor PostgreSQL independiente con
+  replicación física (streaming replication, logical replication o middleware).
+• La réplica incremental simula CDC con triggers locales; en producción se usaría
+  logical replication o Debezium.
+• No se implementa consenso distribuido (Raft/Paxos); el nodo_global es primario fijo.
+• Las sagas no ejecutan compensación automática real entre servidores.
+
+8. CONSULTAS ÚTILES
+-------------------
+SELECT * FROM frag.v_admin_estado_nodos;
+SELECT * FROM frag.v_admin_replicas;
+SELECT * FROM frag.validar_integridad_fragmentacion();
+SELECT frag.recuperar_fragmento_region('AQP');
+SELECT frag.crear_particiones_mensuales('nodo_lim_n', 'pedido', 6);
+SELECT frag.sincronizar_replicas_globales(FALSE);

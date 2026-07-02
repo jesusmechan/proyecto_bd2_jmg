@@ -1,0 +1,67 @@
+%% Diagrama de distribución por nodo — delivery_db_distribuida
+%% Ver en: https://mermaid.live
+
+flowchart TB
+  subgraph PUBLIC["public (modelo unificado)"]
+    P_persona[persona]
+    P_pedido[pedido]
+    P_comercio[comercio]
+    P_catalogo[catalogo_maestro]
+  end
+
+  subgraph GLOBAL["nodo_global (primario)"]
+    G_cat[catalogo_maestro REPLICA]
+    G_saga[saga_monitoreo REPLICA PARCIAL]
+    G_resumen[resumen_pedidos_region REPLICA PARCIAL]
+  end
+
+  subgraph LIMN["nodo_lim_n (Lima Norte)"]
+    N_persona[persona H]
+    N_pedido[pedido H+PARTICION]
+    N_detalle[detalle_pedido DERIVADA]
+    N_pago[pago DERIVADA]
+    N_cat[catalogo_maestro REPLICA]
+  end
+
+  subgraph LIMS["nodo_lim_s (Lima Sur)"]
+    S_persona[persona H]
+    S_pedido[pedido H+PARTICION]
+    S_cat[catalogo_maestro REPLICA]
+  end
+
+  subgraph AQP["nodo_aqp (Arequipa)"]
+    A_persona[persona H]
+    A_pedido[pedido H+PARTICION]
+    A_cat[catalogo_maestro REPLICA]
+  end
+
+  subgraph FRAG["frag (orquestación)"]
+    F_matriz[matriz_fragmentacion]
+    F_heartbeat[nodo_heartbeat]
+    F_sync[replica_cambios / fragmento_cambios]
+    F_audit[auditoria_cluster]
+  end
+
+  PUBLIC -->|sync sincrona| GLOBAL
+  GLOBAL -->|sync asincrona| LIMN
+  GLOBAL -->|sync asincrona| LIMS
+  GLOBAL -->|sync asincrona| AQP
+  PUBLIC -->|migracion / triggers| LIMN
+  PUBLIC -->|migracion / triggers| LIMS
+  PUBLIC -->|migracion / triggers| AQP
+  LIMN -->|estado sagas| G_saga
+  LIMN -->|resumen pedidos| G_resumen
+  FRAG -.->|monitorea| LIMN
+  FRAG -.->|monitorea| LIMS
+  FRAG -.->|monitorea| AQP
+  FRAG -.->|monitorea| GLOBAL
+
+  classDef replica fill:#e8f4fc,stroke:#2196F3
+  classDef horizontal fill:#e8f5e9,stroke:#4CAF50
+  classDef derivada fill:#fff3e0,stroke:#FF9800
+  classDef orquest fill:#f3e5f5,stroke:#9C27B0
+
+  class G_cat,N_cat,S_cat,A_cat replica
+  class N_persona,S_persona,A_persona,N_pedido,S_pedido,A_pedido horizontal
+  class N_detalle,N_pago derivada
+  class F_matriz,F_heartbeat,F_sync,F_audit orquest

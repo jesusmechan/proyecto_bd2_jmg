@@ -1,9 +1,10 @@
 -- =========================================================
 -- Carga masiva de datos: delivery_db_distribuida
--- Ejecutar DESPUÉS de delivery_db_distribuida.sql
+-- Carpeta: 2. datos-semilla  |  Orden: PASO 2 (después del paso 1)
 --
---   psql -f delivery_db_distribuida.sql
---   psql -d delivery_db_distribuida -f delivery_db_distribuida_seed.sql
+--   psql -f "1. esquema/1. delivery_db_distribuida.sql"
+--   psql -d delivery_db_distribuida -f "2. datos-semilla/2. delivery_db_distribuida_seed.sql"
+--   psql -d delivery_db_distribuida -f "3. fragmentacion/3. delivery_db_fragmentacion_hv.sql"
 --
 -- Volúmenes aproximados generados:
 --   LIM-N : 120 personas, 100 clientes, 20 repartidores, 25 comercios, ~150 pedidos
@@ -11,8 +12,6 @@
 --   AQP   :  80 personas,  65 clientes, 12 repartidores, 15 comercios,  ~90 pedidos
 --   Total : ~300 personas, ~360 pedidos, ~600+ productos, bitácora y sagas
 -- =========================================================
-
-\c delivery_db_distribuida
 
 -- Limpia datos regionales previos (conserva nodo_registro y catalogo_maestro)
 TRUNCATE saga_paso, saga_transaccion, bitacora_evento,

@@ -1,7 +1,7 @@
 # Modelo Entidad-Relación (MER) — delivery_db_distribuida
 
 Base de datos para plataforma de **delivery** adaptada a un entorno **distribuido** (fragmentación horizontal por `region_codigo`).  
-Script fuente: `delivery_db_distribuida.sql`
+Script fuente: `1. esquema/1. delivery_db_distribuida.sql`
 
 ---
 
@@ -506,8 +506,9 @@ REPARTIDOR ──1:N── RUTA_REPARTO ──1:N── PARADA_RUTA ──N:1─
 
 | Archivo | Contenido |
 |---------|-----------|
-| `delivery_db_distribuida.sql` | DDL completo |
-| `delivery_db_distribuida_seed.sql` | Datos de prueba |
-| `delivery_db_distribuida_mer.mmd` | Diagrama ER Mermaid (fuente editable) |
-| `assets/delivery_db_distribuida_mer.png` | Imagen PNG del MER |
-| `delivery_db_distribuida_mer.md` | Este documento |
+| `1. esquema/1. delivery_db_distribuida.sql` | DDL completo |
+| `2. datos-semilla/2. delivery_db_distribuida_seed.sql` | Datos de prueba |
+| `3. fragmentacion/3. delivery_db_fragmentacion_hv.sql` | Fragmentación H/V (ejemplo) |
+| `4. concurrencia-repartidor/` | Demo concurrencia `repartidor.disponible` |
+| `5. consultas/5. consultas_basicas.sql` | Consultas SQL para exposicion |
+| `6. nosql-mongodb/` | 20 casos MongoDB + indices + agregaciones + validaciones |

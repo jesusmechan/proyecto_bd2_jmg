@@ -1,0 +1,145 @@
+PROYECTO delivery_db_distribuida — ORDEN DE EJECUCION
+
+=====================================================
+
+
+
+Desde la carpeta "avance proyecto final":
+
+
+
+PASO 1 — Esquema base (obligatorio)
+
+  psql -f "1. esquema/1. delivery_db_distribuida.sql"
+
+
+
+PASO 2 — Datos de prueba (obligatorio)
+
+  psql -d delivery_db_distribuida -f "2. datos-semilla/2. delivery_db_distribuida_seed.sql"
+
+
+
+PASO 3 — Fragmentacion H/V + Replicacion (script unico consolidado)
+
+  psql -d delivery_db_distribuida -f "3. fragmentacion/3. delivery_db_fragmentacion_hv.sql"
+
+  Requiere pasos 1 y 2. Crea esquemas:
+    frag, nodo_global, nodo_lim_n, nodo_lim_s, nodo_aqp
+  Migra public.* del seed a cada esquema regional.
+  Incluye checklist 40 mejoras + v3 (triggers, sync incremental, DR, validacion profunda).
+
+
+
+PASO 4 — Concurrencia repartidor.disponible (2 ventanas psql)
+
+  4.1 Instalacion (una vez):
+
+      psql -d delivery_db_distribuida -f "4. concurrencia-repartidor/1. instalacion.sql"
+
+
+
+  Abrir 2 ventanas interactivas:
+
+      psql -d delivery_db_distribuida
+
+
+
+  En cada ventana:
+
+      \cd '4. concurrencia-repartidor'
+
+
+
+  Apartado A — sin control (problema):
+
+      \i '2. prep.sql'
+
+      Ventana 1: \i '3. sin_control_ventana1.sql'
+
+      Ventana 2: \i '4. sin_control_ventana2.sql'
+
+      \i '7. verificar.sql'
+
+
+
+  Apartado B — con control (solucion):
+
+      \i '2. prep.sql'
+
+      Ventana 1: \i '5. con_control_ventana1.sql'
+
+      Ventana 2: \i '6. con_control_ventana2.sql'
+
+      \i '7. verificar.sql'
+
+
+
+PASO 5 — Consultas basicas SQL (exposicion)
+
+  psql -d delivery_db_distribuida -f "5. consultas/5. consultas_basicas.sql"
+
+
+
+PASO 6 — MongoDB (NoSQL)
+
+  Requiere mongosh instalado y MongoDB en ejecucion.
+
+
+
+  6.1 — 20 casos relacional a NoSQL:
+
+      mongosh < "6. nosql-mongodb/1. casos_20_migracion.js"
+
+
+
+  6.2 — Indices:
+
+      mongosh delivery_nosql < "6. nosql-mongodb/2. indices.js"
+
+
+
+  6.3 — Agregaciones:
+
+      mongosh delivery_nosql < "6. nosql-mongodb/3. agregaciones.js"
+
+
+
+  6.4 — Validaciones JSON Schema:
+
+      mongosh delivery_nosql < "6. nosql-mongodb/4. validaciones.js"
+
+
+
+DOCUMENTACION
+
+  0. documentacion/delivery_db_distribuida_mer.md
+
+  0. documentacion/delivery_db_distribuida_mer.mmd
+
+  0. documentacion/5. teoria_sistemas_distribuidos.txt
+  0. documentacion/6. mejoras_distribuida.txt
+  0. documentacion/7. checklist_mejoras_estado.txt
+  0. documentacion/7. diagrama_distribucion_nodos.mmd
+  0. documentacion/8. documentacion_v3_fragmentacion.txt
+
+
+
+MAPEO AVANCE (8 puntos)
+
+  1. MER 10+ tablas     -> 1. esquema + 0. documentacion
+
+  2. Datos 50+          -> 2. datos-semilla
+
+  3. BD distribuida     -> 1. esquema + 3. fragmentacion (H/V + replica)
+
+  4. Consultas SQL      -> 5. consultas
+
+  5. Teoria distribuida -> 0. documentacion/5. teoria_sistemas_distribuidos.txt
+
+  6. Concurrencia       -> 4. concurrencia-repartidor
+
+  7. 20 casos a MongoDB -> 6. nosql-mongodb/1. casos_20_migracion.js
+
+  8. Indices/agreg/val. -> 6. nosql-mongodb/2, 3, 4
+

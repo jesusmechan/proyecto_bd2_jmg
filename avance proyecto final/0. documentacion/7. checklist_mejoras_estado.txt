@@ -1,0 +1,139 @@
+CHECKLIST DE MEJORAS — ESTADO DE IMPLEMENTACIÓN (40 ítems)
+==========================================================
+Archivos:
+  3. fragmentacion/3. delivery_db_fragmentacion_hv.sql      (núcleo v2)
+  Script unico: 3. fragmentacion/3. delivery_db_fragmentacion_hv.sql (checklist 40 + v3)
+  0. documentacion/6. mejoras_distribuida.txt
+  0. documentacion/7. diagrama_distribucion_nodos.mmd
+
+Ejecución:
+  psql -d delivery_db_distribuida -f "3. fragmentacion/3. delivery_db_fragmentacion_hv.sql"
+  psql -d delivery_db_distribuida -f "3. fragmentacion/3. delivery_db_fragmentacion_hv.sql"
+
+[✓]  1. FK entre tablas fragmentadas
+     → frag.agregar_fks_y_checks_nodo(): pedido→cliente/comercio/repartidor
+
+[✓]  2. CHECK region_codigo
+     → ck_persona_region en nodos; ck_*_region_valida en public
+
+[✓]  3. Triggers public → nodos regionales
+     → tg_frag_* en persona, usuario, cliente, comercio, pedido, detalle_pedido, pago, bitacora
+
+[✓]  4. Sincronización automática de fragmentos
+     → frag.fragmento_cambios + frag.sincronizar_fragmentos_incremental()
+
+[✓]  5. Particiones mensuales futuras
+     → frag.crear_particiones_mensuales() + frag.mantener_particiones_cluster()
+
+[✓]  6. Eliminación particiones antiguas
+     → frag.purgar_particiones_antiguas(esquema, tabla, meses)
+
+[✓]  7. Balanceo / cambio de región
+     → frag.cambiar_region_entidad(tabla, id, origen, destino)
+
+[✓]  8. Recuperación automática al volver ONLINE
+     → frag.procesar_nodo_online(region)
+
+[✓]  9. Detección conflictos replicación
+     → frag.replica_conflictos + frag.detectar_conflictos_replica()
+
+[✓] 10. Versionado / timestamp conflictos
+     → version_registro en tablas regionales; version_origen en fragmento_cambios
+
+[✓] 11. Tiempo total migración por región
+     → frag.migracion_metricas + auditoria_cluster.duracion_ms
+
+[✓] 12. Errores por entidad en migración
+     → migracion_metricas.errores + auditoria_cluster
+
+[✓] 13. Métricas espacio por nodo
+     → frag.metricas_espacio_nodo + frag.medir_espacio_nodos()
+
+[✓] 14. Métricas crecimiento por tabla
+     → frag.metricas_crecimiento + frag.medir_crecimiento_tablas()
+
+[✓] 15. Vistas comparación tiempos consulta
+     → frag.v_comparacion_tiempos_consulta + frag.benchmark_consulta()
+
+[✓] 16. Vistas tamaño fragmentos
+     → frag.v_tamano_fragmentos
+
+[✓] 17. Vistas desbalance regiones
+     → frag.v_desbalance_regiones
+
+[✓] 18. Índices compuestos consultas frecuentes
+     → frag.crear_indices_avanzados_nodo()
+
+[✓] 19. Índices columnas JOIN
+     → detalle_pedido(id_pedido,id_producto), producto(id_categoria,id_comercio)
+
+[✓] 20. Índices FK búsqueda frecuente
+     → usuario(id_persona), cliente(id_usuario), pago(id_pedido)
+
+[✓] 21. EXPLAIN ANALYZE demostración
+     → frag.ejecutar_explain_benchmark()
+
+[✓] 22. Reconstruir nodo desde cero
+     → frag.reconstruir_nodo_completo(region)
+
+[✓] 23. Validar duplicados en recuperación
+     → frag.validar_sin_duplicados_recuperacion(region)
+
+[✓] 24. Réplica parcial operativa
+     → nodo_global.resumen_pedidos_region + sincronizar_resumen_pedidos_region()
+
+[✓] 25. Documentación estrategias fragmentación
+     → matriz_fragmentacion + 6. mejoras_distribuida.txt
+
+[✓] 26. Justificación réplica/fragmento/derivada
+     → columnas criterio_decision y motivo en matriz_fragmentacion
+
+[✓] 27. Diagramas distribución por nodo
+     → 7. diagrama_distribucion_nodos.mmd
+
+[✓] 28. Flujo replicación incremental
+     → sección 4 en 6. mejoras_distribuida.txt + replica_cambios
+
+[✓] 29. Prueba simular caída nodo
+     → frag.simular_caida_nodo(region)
+
+[✓] 30. Prueba simular recuperación
+     → frag.simular_recuperacion_nodo(region)
+
+[✓] 31. Prueba pérdida comunicación
+     → frag.simular_perdida_comunicacion(region, segundos)
+
+[✓] 32. Pruebas consistencia post-sync
+     → frag.prueba_consistencia_post_sync()
+
+[✓] 33. Pruebas integridad referencial
+     → frag.prueba_integridad_referencial_nodo(esquema)
+
+[✓] 34. Verificar datos huérfanos
+     → frag.verificar_datos_huerfanos()
+
+[✓] 35. Concurrencia en sincronización
+     → pg_advisory_lock en sincronizar_fragmentos_incremental()
+
+[✓] 36. Aislamiento en migración
+     → EXCEPTION en migrar_fragmentos_a_nodos; COMMIT/ROLLBACK por región vía PROCEDURE
+
+[✓] 37. Sync solo registros modificados
+     → replica_cambios + fragmento_cambios + UPSERT por fila
+
+[✓] 38. Limpieza cola replica_cambios
+     → frag.limpiar_replica_cambios_antiguos(dias)
+
+[✓] 39. Bitácora recuperación desastres
+     → frag.bitacora_recuperacion_dr
+
+[✓] 40. Indicadores disponibilidad clúster
+     → frag.v_disponibilidad_cluster + nodo_heartbeat
+
+CONSULTAS RÁPIDAS DE DEMOSTRACIÓN
+---------------------------------
+SELECT * FROM frag.v_disponibilidad_cluster;
+SELECT * FROM frag.prueba_consistencia_post_sync();
+SELECT frag.simular_caida_nodo('AQP');
+SELECT frag.simular_recuperacion_nodo('AQP');
+SELECT * FROM frag.ejecutar_explain_benchmark();

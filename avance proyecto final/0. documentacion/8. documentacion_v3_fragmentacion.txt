@@ -1,0 +1,68 @@
+DOCUMENTACIÓN v3 — FRAGMENTACIÓN Y REPLICACIÓN
+==========================================
+
+ARCHIVOS
+--------
+3.  delivery_db_fragmentacion_hv.sql      — núcleo
+3. delivery_db_fragmentacion_hv.sql — script unico consolidado (fragmentacion + checklist 40 + mejoras v3)
+
+ALGORITMO DE ENRUTAMIENTO
+-------------------------
+1. Toda fila en public.* tiene region_codigo (o se obtiene vía tabla padre en derivadas).
+2. frag.mapa_nodos mapea region_codigo → esquema_pg (nodo_lim_n, nodo_lim_s, nodo_aqp).
+3. frag.consultar_pedidos_region('LIM-N') o frag.enrutar_consulta(region, sql)
+   ejecutan la consulta SOLO en el esquema del nodo destino (sin UNION ALL).
+4. Lecturas globales de catálogo: cualquier nodo tiene réplica local de catalogo_maestro.
+
+FLUJO DE REPLICACIÓN INCREMENTAL
+--------------------------------
+  public (INSERT/UPDATE/DELETE)
+       ↓ trigger registrar_cambio_replica
+  frag.replica_cambios (cola: id, operación, version_origen, payload)
+       ↓ sincronizar_replica_incremental_cola() [solo filas pendientes]
+  nodo_global (primario SINCRONO)
+       ↓ procesar_fila_replica_catalogo() por esquema
+  nodo_lim_n | nodo_lim_s | nodo_aqp (ASINCRONO)
+       ↓ resolver_conflicto_lww() si version_local > version_nueva
+  réplica actualizada o conflicto en replica_conflictos
+
+FRAGMENTACIÓN DERIVADA
+----------------------
+Tablas hijas sin región propia en el nodo; la región se hereda del padre:
+  detalle_pedido, pago     → JOIN public.pedido
+  parada_ruta              → JOIN public.ruta_reparto (+ pedido para FK)
+  saga_paso                → JOIN public.saga_transaccion
+
+Migración: frag.migrar_pedidos_a_nodo / migrar_rutas_a_nodo / migrar_sagas_a_nodo
+
+RECUPERACIÓN DE NODO
+--------------------
+A) Desde public (central): frag.recuperar_fragmento_region('LIM-N')
+B) Desde réplica regional: frag.recuperar_desde_nodo_replica('LIM-N','LIM-S')
+C) Simulación: SELECT frag.apagar_nodo('AQP'); SELECT frag.encender_nodo('AQP');
+D) DR completo: SELECT frag.ejecutar_escenario_dr('AQP');
+
+INTEGRIDAD PARTICIONADA
+-----------------------
+pedido y bitacora_evento: PARTITION BY RANGE(fecha).
+detalle_pedido, pago, parada_ruta incluyen fecha_creacion_pedido
+y FK compuesta → pedido(id_pedido, fecha_creacion).
+
+ESQUEMAS COMO NODOS — VENTAJAS Y LÍMITES
+----------------------------------------
+Ventajas académicas:
+  • Un solo psql, fácil de demostrar en clase.
+  • Transacciones y FK reales entre tablas del mismo nodo.
+  • Particionamiento nativo PostgreSQL.
+
+Limitaciones:
+  • No hay latencia de red real entre nodos.
+  • Un fallo del servidor afecta todos los esquemas.
+  • En producción: un PostgreSQL por región + logical replication o Citus.
+
+CONSULTAS DE VERIFICACIÓN v3
+----------------------------
+SELECT * FROM frag.validar_integridad_profunda();
+SELECT * FROM frag.validar_huerfanos_derivados();
+SELECT * FROM frag.estadisticas_nodo(NULL);
+SELECT frag.verificar_replicas_antes_migracion();

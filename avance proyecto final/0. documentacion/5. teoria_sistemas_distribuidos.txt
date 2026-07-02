@@ -1,0 +1,84 @@
+TEORIA — SISTEMAS DISTRIBUIDOS (delivery_db_distribuida)
+========================================================
+Punto 5 del avance: razones para distribuir tablas en varios nodos.
+
+CONTEXTO DEL PROYECTO
+---------------------
+Plataforma de delivery fragmentada por region_codigo (LIM-N, LIM-S, AQP).
+Catalogos globales replicados (catalogo_maestro, nodo_registro).
+Datos operativos co-ubicados por region (cliente, comercio, pedido, repartidor).
+
+1. MAYOR DISPONIBILIDAD
+-----------------------
+Si un nodo regional falla (ej. AQP), LIM-N y LIM-S siguen operando.
+Los pedidos y repartidores de la region afectada no bloquean otras ciudades.
+catalogo_maestro replicado en todos los nodos evita dependencia del nodo central
+para leer estados de pedido, metodos de pago o roles.
+
+2. MEJOR RENDIMIENTO Y ESCALABILIDAD
+------------------------------------
+Las consultas de pedidos activos, menu de comercios y asignacion de repartidores
+se ejecutan en el nodo local (menos latencia para el usuario en esa ciudad).
+Al crecer el volumen, se agregan nodos por region sin redisenar todo el esquema.
+La desnormalizacion en pedido/detalle_pedido reduce JOINs entre fragmentos.
+
+3. BALANCEO DE CARGA
+--------------------
+La carga de escritura (nuevos pedidos, bitacora, sagas) se reparte entre nodos.
+LIM-N con mas comercios no satura el mismo servidor que AQP.
+bitacora_evento puede particionarse adicionalmente por fecha (ver paso 3 fragmentacion).
+
+4. CONTROL Y SEGURIDAD DE DATOS
+--------------------------------
+Datos de persona, documento y direccion residen en el nodo regional:
+facilita restringir acceso por region o rol (administrador local vs global).
+Contrasenas en usuario; bitacora append-only para auditoria de cambios.
+saga_transaccion coordina operaciones sin FK fisica entre nodos (referencias logicas).
+
+5. CUMPLIMIENTO DE DATOS LOCALES
+---------------------------------
+Regulaciones o politicas de residencia de datos: informacion de clientes y
+repartidores de Lima puede permanecer en servidores de Lima Norte/Sur.
+Unicidad de documento y correo por region (no global) refleja operacion local.
+Proveedores y comercios vinculados a persona en el mismo fragmento regional.
+
+TABLAS Y ESTRATEGIA (RESUMEN — paso 3 v2)
+-----------------------------------------
+REPLICA COMPLETA:    catalogo_maestro, nodo_registro, regla_fragmentacion
+                     (sincrona public→global, asincrona global→regionales)
+HORIZONTAL:          persona, usuario, cliente, comercio, producto, pedido, ...
+HORIZONTAL_DERIVADA: detalle_pedido, pago, parada_ruta, saga_paso
+PARTICION FECHA:     pedido (fecha_creacion), bitacora_evento (fecha_hora)
+REPLICA PARCIAL:     saga_monitoreo en nodo_global (solo estado de sagas)
+
+Sin fragmentacion vertical en persona ni pedido (tablas unificadas por nodo).
+Ver: 0. documentacion/6. mejoras_distribuida.txt
+
+CONSISTENCIA Y REPLICACION
+--------------------------
+• Consistencia fuerte dentro de cada nodo regional (transacciones ACID locales).
+• Consistencia eventual entre nodos para catalogos replicados.
+• Replica sincrona: public → nodo_global.
+• Replica asincrona: nodo_global → nodos regionales.
+• Sagas: coordinacion logica sin 2PC; estado replicado para monitoreo.
+
+LIMITACION
+----------
+Nodos simulados como esquemas (nodo_lim_n, nodo_lim_s, nodo_aqp, nodo_global)
+en una sola instancia PostgreSQL. En produccion: un servidor por region.
+
+REPLICA + FRAGMENTACION JUNTAS (paso 3, esquemas por nodo)
+----------------------------------------------------------
+- frag         → orquestacion, matriz, heartbeat, auditoria, vistas admin
+- nodo_global  → primario GLOBAL (catalogos + saga_monitoreo)
+- nodo_lim_n   → replica + fragmentos solo de LIM-N
+- nodo_lim_s   → replica + fragmentos solo de LIM-S
+- nodo_aqp     → replica + fragmentos solo de AQP
+- migrar_fragmentos_a_nodos() copia public.* filtrado por region_codigo
+- Mismos UUID que seed_uuid() del paso 2
+
+PERSISTENCIA POLIGLOTA (PASO 6)
+-------------------------------
+PostgreSQL: transacciones ACID (pedidos, pagos, identidad).
+MongoDB: documentos flexibles (perfiles, bitacora, tracking, catalogo rico).
+Enlace: region_codigo + UUID como referencias logicas entre motores.
