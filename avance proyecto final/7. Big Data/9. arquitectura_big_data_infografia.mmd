@@ -1,0 +1,54 @@
+%% Arquitectura Big Data — Delivery Distribuido (esquema académico)
+%% Abrir en Mermaid Live / Notion / exportar a PNG para la presentación
+flowchart LR
+  subgraph INGESTA["1. INGESTA DE DATOS"]
+    A1["App clientes"]
+    A2["Comercios / menú"]
+    A3["GPS repartidores"]
+    A4["Pagos y bitácora"]
+  end
+
+  subgraph HDFS["2. ALMACENAMIENTO — HDFS"]
+    B1["Data Lake<br/>pedidos, tracking,<br/>logs, pagos"]
+    B2["Formato crudo<br/>CSV / JSON / Parquet"]
+  end
+
+  subgraph YARN["3. GESTIÓN DE RECURSOS — YARN"]
+    C1["ResourceManager"]
+    C2["NodeManagers<br/>asigna CPU / RAM a jobs"]
+  end
+
+  subgraph MR["4. PROCESAMIENTO — MapReduce"]
+    D1["Map<br/>partir por región / pedido"]
+    D2["Shuffle / Sort"]
+    D3["Reduce<br/>agregar métricas"]
+  end
+
+  subgraph CAPAS["5. CAPAS DE DATOS"]
+    E1["RAW · Bronce<br/>datos crudos"]
+    E2["TRUSTED · Plata<br/>limpieza + fragmento región"]
+    E3["SERVING · Oro<br/>KPI y agregados"]
+  end
+
+  subgraph PRESENTACION["6. PRESENTACIÓN DE RESULTADOS"]
+    F1["Tablero gerencial"]
+    F2["Reportes SQL / Mongo"]
+    F3["KPI: ventas, ETA,<br/>repartidores, regiones"]
+  end
+
+  A1 --> B1
+  A2 --> B1
+  A3 --> B1
+  A4 --> B1
+  B1 --> B2
+  B2 --> C1
+  C1 --> C2
+  C2 --> D1
+  D1 --> D2
+  D2 --> D3
+  D3 --> E1
+  E1 --> E2
+  E2 --> E3
+  E3 --> F1
+  E3 --> F2
+  E3 --> F3

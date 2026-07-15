@@ -6,11 +6,11 @@
 --   psql -d delivery_db_distribuida -f "2. datos-semilla/2. delivery_db_distribuida_seed.sql"
 --   psql -d delivery_db_distribuida -f "3. fragmentacion/3. delivery_db_fragmentacion_hv.sql"
 --
--- Volúmenes aproximados generados:
---   LIM-N : 120 personas, 100 clientes, 20 repartidores, 25 comercios, ~150 pedidos
---   LIM-S : 100 personas,  80 clientes, 15 repartidores, 20 comercios, ~120 pedidos
---   AQP   :  80 personas,  65 clientes, 12 repartidores, 15 comercios,  ~90 pedidos
---   Total : ~300 personas, ~360 pedidos, ~600+ productos, bitácora y sagas
+-- Volúmenes generados (pedido / detalle_pedido / pago = 100 000 c/u):
+--   LIM-N : 120 personas, 100 clientes, 20 repartidores, 25 comercios, 42 000 pedidos
+--   LIM-S : 100 personas,  80 clientes, 15 repartidores, 20 comercios, 33 000 pedidos
+--   AQP   :  80 personas,  65 clientes, 12 repartidores, 15 comercios, 25 000 pedidos
+--   Total : 100 000 pedidos, 100 000 detalles (1 por pedido), 100 000 pagos (1 por pedido)
 -- =========================================================
 
 -- Limpia datos regionales previos (conserva nodo_registro y catalogo_maestro)
@@ -53,7 +53,6 @@ DECLARE
   v_tipos_com     TEXT[] := ARRAY['Restaurante','Pollería','Cevichería','Pizzería','Cafetería','Pastelería','Comida Rápida','Sushi Bar','Chifa','Delivery Saludable'];
   v_tipos_cat     TEXT[] := ARRAY['Platos','Bebidas','Postres','Promociones','Combos','Entradas'];
   v_tipos_prod    TEXT[] := ARRAY['Especial','Clásico','Premium','Familiar','Individual','Del día'];
-  v_estados_ped   TEXT[] := ARRAY['CREADO','CONFIRMADO','EN_CAMINO','ENTREGADO','CANCELADO'];
   v_metodos_pago  TEXT[] := ARRAY['EFECTIVO','TARJETA','YAPE','PLIN','TRANSFERENCIA'];
   v_estados_pago  TEXT[] := ARRAY['PENDIENTE','PAGADO','RECHAZADO'];
   v_vehiculos     TEXT[] := ARRAY['MOTO','BICI','AUTO'];
@@ -63,7 +62,6 @@ DECLARE
   i               INT;
   j               INT;
   k               INT;
-  p               INT;
   v_id_persona    UUID;
   v_id_usuario    UUID;
   v_id_cliente    UUID;
@@ -73,35 +71,23 @@ DECLARE
   v_id_categoria  UUID;
   v_id_producto   UUID;
   v_id_pedido     UUID;
-  v_id_detalle    UUID;
-  v_id_pago       UUID;
   v_id_ruta       UUID;
   v_id_parada     UUID;
-  v_id_saga       UUID;
   v_id_tipo_natural UUID;
   v_id_tipo_juridica UUID;
   v_id_doc_dni UUID;
   v_id_doc_ruc UUID;
   v_nombre_com    TEXT;
   v_estado        TEXT;
-  v_subtotal      NUMERIC(12,2);
-  v_envio         NUMERIC(12,2);
-  v_total         NUMERIC(12,2);
   v_precio        NUMERIC(12,2);
-  v_cant          INT;
-  v_importe       NUMERIC(12,2);
   v_nombre_per    TEXT;
   v_nombre_prov   TEXT;
-  v_prod_ids      UUID[];
-  v_prod_nombres  TEXT[];
-  v_prod_precios  NUMERIC[];
-  v_num_prods     INT;
-  v_det_idx       INT;
   v_rep_idx       INT;
   v_offset_doc    INT;
   v_pedido_global INT := 0;
   v_bitacora      INT := 0;
   v_saga          INT := 0;
+  v_filas         INT;
   v_rec           RECORD;
 BEGIN
   SELECT id_catalogo INTO v_id_tipo_natural
@@ -116,23 +102,43 @@ BEGIN
   SELECT id_catalogo INTO v_id_doc_ruc
   FROM catalogo_maestro WHERE tipo_catalogo = 'TIPO_DOCUMENTO' AND codigo = 'RUC';
 
+  -- Staging para carga masiva pedido + detalle + pago (1:1 y 100k total)
+  CREATE TEMP TABLE IF NOT EXISTS tmp_seed_pedidos (
+    p                INT PRIMARY KEY,
+    estado           TEXT NOT NULL,
+    cant             INT NOT NULL,
+    envio            NUMERIC(12,2) NOT NULL,
+    id_pedido        UUID NOT NULL,
+    id_cliente       UUID NOT NULL,
+    id_comercio      UUID NOT NULL,
+    id_producto      UUID NOT NULL,
+    id_repartidor    UUID,
+    id_usuario       UUID NOT NULL,
+    nombre_cliente   VARCHAR(240) NOT NULL,
+    nombre_comercio  VARCHAR(160) NOT NULL,
+    nombre_producto  VARCHAR(160) NOT NULL,
+    precio           NUMERIC(12,2) NOT NULL,
+    subtotal         NUMERIC(12,2) NOT NULL,
+    total            NUMERIC(12,2) NOT NULL
+  ) ON COMMIT PRESERVE ROWS;
+
   FOREACH v_region IN ARRAY v_regiones LOOP
     v_reg_idx := array_position(v_regiones, v_region);
 
-    -- Parámetros por región
+    -- Parámetros por región (pedidos suman 100 000)
     IF v_region = 'LIM-N' THEN
       v_personas := 120; v_clientes := 100; v_repartidores := 20;
-      v_comercios := 25; v_proveedores := 12; v_pedidos := 150;
+      v_comercios := 25; v_proveedores := 12; v_pedidos := 42000;
       v_distritos := ARRAY['Los Olivos','Independencia','San Martín de Porres','Comas','Carabayllo'];
       v_offset_doc := 71000000;
     ELSIF v_region = 'LIM-S' THEN
       v_personas := 100; v_clientes := 80; v_repartidores := 15;
-      v_comercios := 20; v_proveedores := 10; v_pedidos := 120;
+      v_comercios := 20; v_proveedores := 10; v_pedidos := 33000;
       v_distritos := ARRAY['Surco','Miraflores','Barranco','Chorrillos','San Borja'];
       v_offset_doc := 72000000;
     ELSE
       v_personas := 80; v_clientes := 65; v_repartidores := 12;
-      v_comercios := 15; v_proveedores := 8; v_pedidos := 90;
+      v_comercios := 15; v_proveedores := 8; v_pedidos := 25000;
       v_distritos := ARRAY['Yanahuara','Cayma','Cerro Colorado','Paucarpata','Sachaca'];
       v_offset_doc := 73000000;
     END IF;
@@ -278,130 +284,195 @@ BEGIN
       END LOOP;
     END LOOP;
 
-    -- PEDIDOS + DETALLE + PAGO
-    FOR p IN 1..v_pedidos LOOP
-      v_pedido_global := v_pedido_global + 1;
-      v_id_pedido := seed_uuid(9, v_reg_idx, p);
-      v_id_cliente := seed_uuid(3, v_reg_idx, 1 + ((p * 7) % v_clientes));
-      j := 1 + (p % v_comercios);
-      v_id_comercio := seed_uuid(5, v_reg_idx, j);
+    -- PEDIDOS + DETALLE + PAGO (carga masiva 1:1:1 vía tmp_seed_pedidos)
+    RAISE NOTICE 'Generando % pedidos/detalles/pagos en % ...', v_pedidos, v_region;
+    TRUNCATE tmp_seed_pedidos;
 
-      SELECT nombre INTO v_nombre_com FROM comercio
-      WHERE region_codigo = v_region AND id_comercio = v_id_comercio;
+    INSERT INTO tmp_seed_pedidos (
+      p, estado, cant, envio, id_pedido, id_cliente, id_comercio, id_producto,
+      id_repartidor, id_usuario, nombre_cliente, nombre_comercio, nombre_producto,
+      precio, subtotal, total)
+    SELECT
+      b.p,
+      b.estado,
+      b.cant,
+      b.envio,
+      seed_uuid(9, v_reg_idx, b.p),
+      seed_uuid(3, v_reg_idx, b.cli_n),
+      seed_uuid(5, v_reg_idx, b.com_n),
+      seed_uuid(8, v_reg_idx, (b.com_n - 1) * 24 + b.prod_n),
+      CASE
+        WHEN b.estado IN ('EN_CAMINO', 'ENTREGADO', 'CONFIRMADO') AND b.p % 7 <> 0
+        THEN seed_uuid(4, v_reg_idx, 1 + ((b.p - 1) % v_repartidores))
+        ELSE NULL
+      END,
+      seed_uuid(2, v_reg_idx, b.cli_n),
+      left(trim(per.nombres || ' ' || coalesce(per.apellidos, '')), 240),
+      left(com.nombre, 160),
+      pr.nombre,
+      pr.precio,
+      round(pr.precio * b.cant, 2),
+      round(pr.precio * b.cant, 2) + b.envio
+    FROM (
+      SELECT
+        gs.p,
+        1 + ((gs.p * 7) % v_clientes) AS cli_n,
+        1 + ((gs.p - 1) % v_comercios) AS com_n,
+        1 + ((gs.p - 1) % 24) AS prod_n,
+        1 + (gs.p % 3) AS cant,
+        round((4 + (gs.p % 6))::numeric, 2) AS envio,
+        CASE
+          WHEN gs.p % 20 = 0 THEN 'CANCELADO'
+          WHEN gs.p % 5 = 0 THEN 'CREADO'
+          WHEN gs.p % 4 = 0 THEN 'CONFIRMADO'
+          WHEN gs.p % 3 = 0 THEN 'EN_CAMINO'
+          ELSE 'ENTREGADO'
+        END AS estado
+      FROM generate_series(1, v_pedidos) AS gs(p)
+    ) b
+    JOIN persona per
+      ON per.region_codigo = v_region
+     AND per.id_persona = seed_uuid(1, v_reg_idx, b.cli_n)
+    JOIN comercio com
+      ON com.region_codigo = v_region
+     AND com.id_comercio = seed_uuid(5, v_reg_idx, b.com_n)
+    JOIN producto pr
+      ON pr.region_codigo = v_region
+     AND pr.id_producto = seed_uuid(8, v_reg_idx, (b.com_n - 1) * 24 + b.prod_n);
 
-      SELECT nombres || ' ' || apellidos INTO v_nombre_per FROM persona
-      WHERE region_codigo = v_region AND id_persona = seed_uuid(1, v_reg_idx, 1 + ((p * 7) % v_clientes));
+    GET DIAGNOSTICS v_filas = ROW_COUNT;
+    IF v_filas <> v_pedidos THEN
+      RAISE EXCEPTION 'Región %: se esperaban % pedidos en staging y se generaron %',
+        v_region, v_pedidos, v_filas;
+    END IF;
 
-      -- Distribución de estados
-      v_estado := CASE
-        WHEN p % 20 = 0 THEN 'CANCELADO'
-        WHEN p % 5 = 0 THEN 'CREADO'
-        WHEN p % 4 = 0 THEN 'CONFIRMADO'
-        WHEN p % 3 = 0 THEN 'EN_CAMINO'
-        ELSE 'ENTREGADO'
-      END;
+    INSERT INTO pedido (region_codigo, id_pedido, id_cliente, id_comercio, id_repartidor,
+      id_estado_pedido, nombre_cliente, nombre_comercio, direccion_entrega,
+      referencia_entrega, subtotal, costo_envio, total, nodo_origen,
+      fecha_confirmacion, fecha_entrega_real)
+    SELECT
+      v_region,
+      t.id_pedido,
+      t.id_cliente,
+      t.id_comercio,
+      t.id_repartidor,
+      id_catalogo_por_tipo_codigo('ESTADO_PEDIDO', t.estado),
+      t.nombre_cliente,
+      t.nombre_comercio,
+      'Dirección entrega pedido ' || t.p || ', ' ||
+        v_distritos[1 + ((t.p - 1) % array_length(v_distritos, 1))],
+      CASE WHEN t.p % 3 = 0 THEN 'Referencia ' || t.p ELSE NULL END,
+      t.subtotal,
+      t.envio,
+      t.total,
+      v_region,
+      CASE WHEN t.estado <> 'CREADO'
+           THEN now() - ((t.p % 30) || ' days')::interval ELSE NULL END,
+      CASE WHEN t.estado = 'ENTREGADO'
+           THEN now() - ((t.p % 30) || ' days')::interval + interval '45 minutes'
+           ELSE NULL END
+    FROM tmp_seed_pedidos t;
 
-      v_id_repartidor := NULL;
-      IF v_estado IN ('EN_CAMINO', 'ENTREGADO', 'CONFIRMADO') AND p % 7 <> 0 THEN
-        v_id_repartidor := seed_uuid(4, v_reg_idx, 1 + (p % v_repartidores));
-      END IF;
+    INSERT INTO detalle_pedido (region_codigo, id_detalle_pedido, id_pedido, id_producto,
+      nombre_producto, cantidad, precio_unitario, importe_linea, nodo_origen)
+    SELECT
+      v_region,
+      seed_uuid(10, v_reg_idx, t.p),
+      t.id_pedido,
+      t.id_producto,
+      t.nombre_producto,
+      t.cant,
+      t.precio,
+      t.subtotal,
+      v_region
+    FROM tmp_seed_pedidos t;
 
-      v_subtotal := 0;
-      v_envio := round((4 + (p % 6))::numeric, 2);
+    INSERT INTO pago (region_codigo, id_pago, id_pedido, id_metodo_pago, id_estado_pago,
+      monto, nodo_origen, fecha_pago)
+    SELECT
+      v_region,
+      seed_uuid(11, v_reg_idx, t.p),
+      t.id_pedido,
+      id_catalogo_por_tipo_codigo(
+        'METODO_PAGO',
+        v_metodos_pago[1 + ((t.p - 1) % array_length(v_metodos_pago, 1))]
+      ),
+      id_catalogo_por_tipo_codigo(
+        'ESTADO_PAGO',
+        CASE
+          WHEN t.estado IN ('ENTREGADO', 'EN_CAMINO') THEN 'PAGADO'
+          WHEN t.estado = 'CANCELADO' THEN 'DEVUELTO'
+          ELSE v_estados_pago[1 + (t.p % 2)]
+        END
+      ),
+      t.total,
+      v_region,
+      CASE WHEN t.estado IN ('ENTREGADO', 'EN_CAMINO')
+           THEN now() - ((t.p % 30) || ' days')::interval ELSE NULL END
+    FROM tmp_seed_pedidos t;
 
-      INSERT INTO pedido (region_codigo, id_pedido, id_cliente, id_comercio, id_repartidor,
-        id_estado_pedido, nombre_cliente, nombre_comercio, direccion_entrega,
-        referencia_entrega, subtotal, costo_envio, total, nodo_origen,
-        fecha_confirmacion, fecha_entrega_real)
-      VALUES (v_region, v_id_pedido, v_id_cliente, v_id_comercio, v_id_repartidor,
-        id_catalogo_por_tipo_codigo('ESTADO_PEDIDO', v_estado), left(v_nombre_per, 240), left(v_nombre_com, 160),
-        'Dirección entrega pedido ' || p || ', ' || v_distritos[1 + (p % array_length(v_distritos, 1))],
-        CASE WHEN p % 3 = 0 THEN 'Referencia ' || p ELSE NULL END,
-        0, v_envio, 0, v_region,
-        CASE WHEN v_estado <> 'CREADO' THEN now() - ((p % 30) || ' days')::interval ELSE NULL END,
-        CASE WHEN v_estado = 'ENTREGADO' THEN now() - ((p % 30) || ' days')::interval + interval '45 minutes' ELSE NULL END);
+    -- Bitácora: muestra (~2%) para no inflar auditoría al volumen de 100k
+    INSERT INTO bitacora_evento (region_codigo, tipo_evento, tabla_afectada, id_registro,
+      descripcion, id_usuario, nodo_origen, datos_adicionales)
+    SELECT
+      v_region,
+      'PEDIDO_' || t.estado,
+      'pedido',
+      t.id_pedido,
+      'Pedido ' || t.p || ' en estado ' || t.estado || ' (' || v_region || ')',
+      t.id_usuario,
+      v_region,
+      jsonb_build_object('total', t.total, 'estado', t.estado)
+    FROM tmp_seed_pedidos t
+    WHERE t.p % 50 = 0;
 
-      -- Productos del comercio del pedido
-      SELECT array_agg(id_producto ORDER BY id_producto),
-             array_agg(nombre ORDER BY id_producto),
-             array_agg(precio ORDER BY id_producto)
-      INTO v_prod_ids, v_prod_nombres, v_prod_precios
-      FROM (
-        SELECT id_producto, nombre, precio
-        FROM producto
-        WHERE region_codigo = v_region AND id_comercio = v_id_comercio
-        ORDER BY id_producto
-        LIMIT 24
-      ) prod_subset;
+    GET DIAGNOSTICS v_filas = ROW_COUNT;
+    v_bitacora := v_bitacora + v_filas;
 
-      v_num_prods := least(1 + (p % 4), coalesce(array_length(v_prod_ids, 1), 0));
-      IF v_num_prods IS NULL OR v_num_prods = 0 THEN
-        CONTINUE;
-      END IF;
+    -- Sagas cada 100 pedidos (muestra representativa)
+    INSERT INTO saga_transaccion (id_saga, tipo_operacion, region_codigo, estado, id_pedido, payload, fecha_finalizacion)
+    SELECT
+      seed_uuid(14, v_reg_idx, t.p),
+      'CREAR_PEDIDO',
+      v_region,
+      CASE
+        WHEN t.estado = 'CANCELADO' THEN 'FALLIDA'
+        WHEN t.estado = 'CREADO' THEN 'INICIADA'
+        ELSE 'COMPLETADA'
+      END,
+      t.id_pedido,
+      jsonb_build_object('pedido', t.p, 'region', v_region, 'total', t.total),
+      CASE WHEN t.estado NOT IN ('CREADO', 'CANCELADO') THEN now() ELSE NULL END
+    FROM tmp_seed_pedidos t
+    WHERE t.p % 100 = 0;
 
-      FOR v_det_idx IN 1..v_num_prods LOOP
-        v_id_detalle := seed_uuid(10, v_reg_idx, (p - 1) * 4 + v_det_idx);
-        v_cant := 1 + (v_det_idx % 3);
-        v_precio := v_prod_precios[v_det_idx];
-        v_importe := round(v_precio * v_cant, 2);
-        v_subtotal := v_subtotal + v_importe;
+    GET DIAGNOSTICS v_filas = ROW_COUNT;
+    v_saga := v_saga + v_filas;
 
-        INSERT INTO detalle_pedido (region_codigo, id_detalle_pedido, id_pedido, id_producto,
-          nombre_producto, cantidad, precio_unitario, importe_linea, nodo_origen)
-        VALUES (v_region, v_id_detalle, v_id_pedido, v_prod_ids[v_det_idx],
-          v_prod_nombres[v_det_idx], v_cant, v_precio, v_importe, v_region);
-      END LOOP;
+    INSERT INTO saga_paso (id_saga, orden_paso, nombre_paso, estado, nodo_ejecutor, detalle, fecha_ejecucion)
+    SELECT seed_uuid(14, v_reg_idx, t.p), 1, 'validar_stock', 'OK', v_region,
+           '{"ok":true}'::jsonb, now()
+    FROM tmp_seed_pedidos t WHERE t.p % 100 = 0
+    UNION ALL
+    SELECT seed_uuid(14, v_reg_idx, t.p), 2, 'crear_pedido', 'OK', v_region,
+           jsonb_build_object('id_pedido', t.id_pedido), now()
+    FROM tmp_seed_pedidos t WHERE t.p % 100 = 0
+    UNION ALL
+    SELECT seed_uuid(14, v_reg_idx, t.p), 3, 'registrar_pago',
+           CASE WHEN t.estado = 'CANCELADO' THEN 'ERROR'
+                WHEN t.estado = 'CREADO' THEN 'PENDIENTE' ELSE 'OK' END,
+           v_region, '{}'::jsonb,
+           CASE WHEN t.estado NOT IN ('CREADO','CANCELADO') THEN now() ELSE NULL END
+    FROM tmp_seed_pedidos t WHERE t.p % 100 = 0
+    UNION ALL
+    SELECT seed_uuid(14, v_reg_idx, t.p), 4, 'confirmar_pedido',
+           CASE WHEN t.estado IN ('ENTREGADO','EN_CAMINO','CONFIRMADO') THEN 'OK'
+                WHEN t.estado = 'CANCELADO' THEN 'COMPENSADO' ELSE 'PENDIENTE' END,
+           v_region, '{}'::jsonb, NULL
+    FROM tmp_seed_pedidos t WHERE t.p % 100 = 0;
 
-      v_total := v_subtotal + v_envio;
-      UPDATE pedido SET subtotal = v_subtotal, total = v_total
-      WHERE region_codigo = v_region AND id_pedido = v_id_pedido;
-
-      -- Pago (excepto algunos cancelados)
-      IF v_estado <> 'CANCELADO' OR p % 2 = 0 THEN
-        v_id_pago := seed_uuid(11, v_reg_idx, p);
-        INSERT INTO pago (region_codigo, id_pago, id_pedido, id_metodo_pago, id_estado_pago,
-          monto, nodo_origen, fecha_pago)
-        VALUES (v_region, v_id_pago, v_id_pedido,
-          id_catalogo_por_tipo_codigo('METODO_PAGO', v_metodos_pago[1 + (p % array_length(v_metodos_pago, 1))]),
-          id_catalogo_por_tipo_codigo('ESTADO_PAGO',
-            CASE WHEN v_estado IN ('ENTREGADO', 'EN_CAMINO') THEN 'PAGADO'
-                 WHEN v_estado = 'CANCELADO' THEN 'DEVUELTO'
-                 ELSE v_estados_pago[1 + (p % 2)] END),
-          v_total, v_region,
-          CASE WHEN v_estado IN ('ENTREGADO', 'EN_CAMINO') THEN now() - ((p % 30) || ' days')::interval ELSE NULL END);
-      END IF;
-
-      -- Bitácora por pedido
-      v_bitacora := v_bitacora + 1;
-      INSERT INTO bitacora_evento (region_codigo, tipo_evento, tabla_afectada, id_registro,
-        descripcion, id_usuario, nodo_origen, datos_adicionales)
-      VALUES (v_region, 'PEDIDO_' || v_estado, 'pedido', v_id_pedido,
-        'Pedido ' || p || ' en estado ' || v_estado || ' (' || v_region || ')',
-        seed_uuid(2, v_reg_idx, 1 + ((p * 7) % v_clientes)), v_region,
-        jsonb_build_object('total', v_total, 'estado', v_estado));
-
-      -- Saga cada 5 pedidos
-      IF p % 5 = 0 THEN
-        v_saga := v_saga + 1;
-        v_id_saga := seed_uuid(14, v_reg_idx, p);
-        INSERT INTO saga_transaccion (id_saga, tipo_operacion, region_codigo, estado, id_pedido, payload, fecha_finalizacion)
-        VALUES (v_id_saga, 'CREAR_PEDIDO', v_region,
-          CASE WHEN v_estado = 'CANCELADO' THEN 'FALLIDA' WHEN v_estado = 'CREADO' THEN 'INICIADA' ELSE 'COMPLETADA' END,
-          v_id_pedido,
-          jsonb_build_object('pedido', p, 'region', v_region, 'total', v_total),
-          CASE WHEN v_estado NOT IN ('CREADO', 'CANCELADO') THEN now() ELSE NULL END);
-
-        INSERT INTO saga_paso (id_saga, orden_paso, nombre_paso, estado, nodo_ejecutor, detalle, fecha_ejecucion) VALUES
-          (v_id_saga, 1, 'validar_stock', 'OK', v_region, '{"ok":true}'::jsonb, now()),
-          (v_id_saga, 2, 'crear_pedido', 'OK', v_region, jsonb_build_object('id_pedido', v_id_pedido), now()),
-          (v_id_saga, 3, 'registrar_pago',
-            CASE WHEN v_estado = 'CANCELADO' THEN 'ERROR' WHEN v_estado = 'CREADO' THEN 'PENDIENTE' ELSE 'OK' END,
-            v_region, '{}'::jsonb, CASE WHEN v_estado NOT IN ('CREADO','CANCELADO') THEN now() ELSE NULL END),
-          (v_id_saga, 4, 'confirmar_pedido',
-            CASE WHEN v_estado IN ('ENTREGADO','EN_CAMINO','CONFIRMADO') THEN 'OK' WHEN v_estado = 'CANCELADO' THEN 'COMPENSADO' ELSE 'PENDIENTE' END,
-            v_region, '{}'::jsonb, NULL);
-      END IF;
-    END LOOP;
+    v_pedido_global := v_pedido_global + v_pedidos;
+    RAISE NOTICE 'Región %: % pedidos/detalles/pagos insertados.', v_region, v_pedidos;
 
     -- RUTAS DE REPARTO (agrupar pedidos EN_CAMINO y ENTREGADO por repartidor)
     FOR v_rep_idx IN 1..v_repartidores LOOP
@@ -450,9 +521,11 @@ BEGIN
     RAISE NOTICE 'Región % completada.', v_region;
   END LOOP;
 
+  DROP TABLE IF EXISTS tmp_seed_pedidos;
+
   RAISE NOTICE 'Total pedidos generados: %', v_pedido_global;
-  RAISE NOTICE 'Total eventos bitácora: %', v_bitacora;
-  RAISE NOTICE 'Total sagas: %', v_saga;
+  RAISE NOTICE 'Total eventos bitácora (muestra): %', v_bitacora;
+  RAISE NOTICE 'Total sagas (muestra): %', v_saga;
 END $$;
 
 -- =========================================================
@@ -475,6 +548,11 @@ UNION ALL SELECT 'parada_ruta', region_codigo, COUNT(*) FROM parada_ruta GROUP B
 UNION ALL SELECT 'bitacora_evento', COALESCE(region_codigo, 'TODAS'), COUNT(*) FROM bitacora_evento GROUP BY region_codigo
 UNION ALL SELECT 'saga_transaccion', region_codigo, COUNT(*) FROM saga_transaccion GROUP BY region_codigo
 ORDER BY tabla, region_codigo;
+
+-- Totales globales de las tablas de alto volumen
+SELECT 'pedido' AS tabla, COUNT(*) AS filas FROM pedido
+UNION ALL SELECT 'detalle_pedido', COUNT(*) FROM detalle_pedido
+UNION ALL SELECT 'pago', COUNT(*) FROM pago;
 
 -- Pedidos por región y estado
 SELECT pe.region_codigo, cm.codigo AS estado_pedido, COUNT(*) AS cantidad, ROUND(SUM(pe.total), 2) AS monto_total

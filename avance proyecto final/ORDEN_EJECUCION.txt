@@ -125,6 +125,15 @@ DOCUMENTACION
 
 
 
+PROYECCION BIG DATA
+
+  7. Big Data/10. puntos_infografia_big_data.md
+  7. Big Data/9. arquitectura_big_data_infografia.mmd
+  7. Big Data/arquitectura_big_data_delivery.png
+  7. Big Data/flujo_big_data_puntos.png
+
+
+
 MAPEO AVANCE (8 puntos)
 
   1. MER 10+ tablas     -> 1. esquema + 0. documentacion
